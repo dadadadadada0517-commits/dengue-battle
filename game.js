@@ -64,10 +64,10 @@ async function loadAll() {
 
 // ---------- 音效（ElevenLabs＋合成）、音樂 ----------
 const SND = {}; let AC = null;
-function snd(k, v = .8) { try { const base = SND[k] || (SND[k] = new Audio('sfx_' + k + '.wav')); const a = base.cloneNode(); a.volume = v; a.play().catch(() => {}); } catch (e) {} }
+function snd(k, v = .8) { try { const base = SND[k] || (SND[k] = new Audio((window.MEDIA && MEDIA['sfx_' + k + '.wav']) || 'sfx_' + k + '.wav')); const a = base.cloneNode(); a.volume = v; a.play().catch(() => {}); } catch (e) {} }
 function beep(f, d = .06, type = 'square', v = .08) { try { AC = AC || new AudioContext(); const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v; g.gain.exponentialRampToValueAtTime(.0001, AC.currentTime + d); o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + d); } catch (e) {} }
 const cursorS = () => beep(1100, .04), selectS = () => { beep(1320, .05); setTimeout(() => beep(1760, .08), 50); }, menuS = () => { beep(1400, .06, 'square', .1); setTimeout(() => beep(2100, .1, 'square', .1), 60); };
-let BGM = null; function music(src, vol = .45, at = 0) { if (BGM) BGM.pause(); BGM = new Audio(src); BGM.loop = true; BGM.volume = vol; BGM.currentTime = at; BGM.play().catch(() => {}); }
+let BGM = null; function music(src, vol = .45, at = 0) { if (BGM) BGM.pause(); BGM = new Audio((window.MEDIA && MEDIA[src]) || src); BGM.loop = true; BGM.volume = vol; BGM.currentTime = at; BGM.play().catch(() => {}); }
 
 // ---------- 繪圖小工具 ----------
 function T(s, x, y, o = {}) { const sz = o.size || 12; X.save(); X.globalAlpha = o.alpha ?? 1; X.font = `bold ${sz * KS}px ${FONT}`; X.textAlign = o.align || 'left'; X.textBaseline = 'top';
@@ -132,7 +132,7 @@ const HEROES = [
   { id: 'M', name: '中央山脈超人', sheet: 'mountain', hp: 1200, spd: .9, wp: [170, 110], col: '#80ff90',
     skills: [{ n: '防．防蚊護盾', good: 1, shield: 1, d: '淺色長袖＋防蚊液，全體減傷', fx: 'shield', snd: 'block' }, { n: '衝．山岳衝撞', anim: 'run', good: 0, d: '用山頂撞過去', fx: 'hammer', snd: 'smash' }] }];
 const ITEMS = [{ n: '就醫檢查', ok: 1, d: '全體回復，治好發燒' }, { n: '多喝水休息', ok: 1, d: '一人回復' }, { n: '阿斯匹靈', ok: 0, d: '止痛藥……？' }];
-const BOSSW = [-185, 30], BOSS_HP0 = 18000, BOSS_SPD0 = 1.0;
+const BOSSW = [-185, 30], BOSS_HP0 = 36000, BOSS_SPD0 = 2.0;
 
 // ---------- 狀態 ----------
 let scene = 'title', st = 0, now = 0, last = performance.now(), titleCur = 0;
@@ -212,7 +212,7 @@ function camOf(t) { let yaw = Math.sin(t * .2) * .3 + .05, pitch = .4, dist = 72
 function alive() { return G.heroes.filter(h => !h.ko); }
 function battle(dt) {
   const [yaw, pitch, dist, tg] = camOf(now); GL3D.setCamera(yaw, pitch, dist, tg);
-  G.heroes.forEach(h => { const p = GL3D.project(h.wp[0], 0, h.wp[1]); h.x = p.x; h.y = p.y; h.sc = p.s * 760 * 1.15; });
+  G.heroes.forEach((h, i) => { const k = h.lunge || 0, wx = lerp(h.wp[0], BOSSW[0] + 120, k), wz = lerp(h.wp[1], BOSSW[1] + 25 + i * 8, k), p = GL3D.project(wx, 0, wz); h.x = p.x; h.y = p.y; h.sc = p.s * 760 * 1.15; });
   const bp = GL3D.project(BOSSW[0], 0, BOSSW[1]); G.boss.x = bp.x; G.boss.y = bp.y; G.boss.sc = bp.s * 760 * .78;
   const cv = GL3D.render(now); let sk = G.shake > 0 ? G.shake : 0; G.shake = Math.max(0, G.shake - dt * 20);
   X.save(); X.translate(Math.sin(now * 90) * sk * KS, Math.cos(now * 77) * sk * .6 * KS); if (cv) X.drawImage(cv, 0, 0, W * KS, H * KS);
@@ -313,7 +313,7 @@ function menuDraw() { const m = G.menu, h = m.h, items = menuItems(), k = ease(c
   if (click) { const [cx, cy] = click; items.forEach((s, i) => { if (cx > px && cx < px + 120 && cy > py + 6 + i * 20 && cy < py + 24 + i * 20) { m.cur = i; pressed.push('Enter'); } }); }
 }
 // ---------- 我方行動 ----------
-function finish(h) { h.atb = 0; h.off = 0; h.hop = 0; h.anim = null; }
+function finish(h) { h.atb = 0; h.off = 0; h.lunge = 0; h.hop = 0; h.anim = null; }
 function heroAct(h, sk) { const B = G.boss, i = HEROES.findIndex(x => x.id === h.id); snd('cast', .45); fx('spellcharge', h.x, h.y, h.sc, { add: true });
   if (sk.scan) { G.busy = { who: h.id, h, t: now, end: now + 1.8, side: -.3, step: e => { h.anim = e < 1.2 ? 'look' + (Math.floor(e * 2) % 2) : 'c0'; },
       done: () => { G.weak = 3; msg('效果絕佳！找出花盆底盤、水桶、積水！魔王防禦下降（接下來 3 次攻擊傷害提高）', '#80ffb0', 2.6); say(h, '孳生源，全部被我找到了！', 1.8, '#c8ffd8'); G.gem = Math.min(4, G.gem + 1); finish(h); } };
@@ -325,7 +325,7 @@ function heroAct(h, sk) { const B = G.boss, i = HEROES.findIndex(x => x.id === h
   msg(sk.n === '攻擊' ? h.name + ' 的攻擊' : sk.n, '#ffe680', 1.2);
   const dist = (h.x - B.x) * .6, hitT = .55;
   G.busy = { who: h.id, h, t: now, end: now + 1.7, side: i % 2 ? .42 : -.38, hitDone: false,
-    step: e => { const go = clamp((e - .15) / .35), back = clamp((e - 1.2) / .4); const an = sk.anim || 'jump', ground = an === 'run'; h.off = dist * ease(go) * (1 - ease(back)); h.hop = ground ? 0 : an === 'ride' ? 22 * (1 - back) * Math.min(1, go * 3) : Math.sin(go * Math.PI) * 40 * (1 - back) + Math.sin(back * Math.PI) * 30;
+    step: e => { const go = clamp((e - .15) / .35), back = clamp((e - 1.2) / .4); const an = sk.anim || 'jump', ground = an === 'run'; h.lunge = ease(go) * (1 - ease(back)); h.off = 0; h.hop = ground ? 0 : an === 'ride' ? 22 * (1 - back) * Math.min(1, go * 3) : Math.sin(go * Math.PI) * 40 * (1 - back) + Math.sin(back * Math.PI) * 30;
       const R8 = 'r' + (Math.floor(e * 16) % 8);
       h.anim = e < .15 ? 'c0' : back > 0 ? R8 : an === 'run' ? (go < 1 ? R8 : 'j' + (1 + Math.floor(e * 10) % 3)) : an === 'ride' ? 'ride' + (Math.floor(e * 10) % 4) : go < 1 ? 'j2' : an === 'act' ? (h.sheet === 'bunny' ? 'act' + Math.min(5, Math.floor((e - .5) * 10)) : 'act' + (Math.floor(e * 8) % 4)) : 'j' + (1 + Math.floor(e * 10) % 4);
       if (!G.busy.hitDone && e >= hitT) { G.busy.hitDone = true; strike(h, sk); } },
@@ -370,7 +370,7 @@ function bossAct() { const B = G.boss, al = alive(); if (!al.length) return; B.a
     step: e => { if (cover) { const k = Math.min(clamp(e / .35), clamp((1.8 - e) / .3)); M.off = (M.x - cover.x + 26 * cover.sc) * ease(k); M.hop = (M.y - cover.y) * ease(k); M.anim = k < 1 && e < .4 ? 'r' + (Math.floor(e * 16) % 8) : 'stand'; if (e > 1.75) { M.off = 0; M.hop = 0; M.anim = null; } }
       B.lunge = sonic ? 0 : Math.sin(clamp((e - .2) / 1.0) * Math.PI) * ((cover || tgt).x - B.x) * .45; if (sonic && e > .3 && e < 1.1) fx('emp', B.x + 60 * B.sc, B.y - 80 * B.sc, 1.6 * B.sc, { add: true });
       if (!G.busy.hitDone && e >= .7) { G.busy.hitDone = true; const list = sonic ? al : [tgt]; const red = (G.shield > 0 ? .3 : 1) * (cover ? .6 : 1); if (G.shield > 0) G.shield--;
-        list.forEach(h => { const d = Math.round((sonic ? rnd(160, 260) : rnd(320, 460)) * red * (B.hp < B.max * .3 ? 1.3 : 1)); const was = h.cur; h.cur -= d; h.hurt = now; const hx = h.x - (h.off || 0), hy = h.y - (h.hop || 0); num(String(d), hx, hy - 80 * h.sc, '#ffb0b0');
+        list.forEach(h => { const d = Math.round((sonic ? rnd(320, 520) : rnd(640, 920)) * red * (B.hp < B.max * .3 ? 1.3 : 1)); const was = h.cur; h.cur -= d; h.hurt = now; const hx = h.x - (h.off || 0), hy = h.y - (h.hop || 0); num(String(d), hx, hy - 80 * h.sc, '#ffb0b0');
           fx(sonic ? 'thunder' : cover ? 'block' : 'claw', hx, hy - 30 * h.sc, h.sc, { flip: true }); if (!sonic && !cover && Math.random() < .6) { h.fever = 1; setTimeout(() => msg(h.name + ' 被叮了！發燒、頭痛……快用「就醫檢查」！', '#ffb0b0', 2.4), 500); }
           if (h.cur > 0 && h.cur < h.hp * .3 && was >= h.hp * .3) setTimeout(() => say(h, ['我、我不行了……', '好痛……快撐不住了……', '頭好暈……'][Math.floor(Math.random() * 3)], 2), 600);
           else if (h.cur > 0 && h.cur < h.hp * .5 && was >= h.hp * .5) setTimeout(() => say(h, ['可惡……這次的蚊子好強！', '好癢……可惡！', '怎麼辦……'][Math.floor(Math.random() * 3)], 2), 600);
@@ -379,7 +379,7 @@ function bossAct() { const B = G.boss, al = alive(); if (!al.length) return; B.a
     done: () => { B.lunge = 0; if (cover) { M.off = 0; M.hop = 0; M.anim = null; } } };
 }
 // ---------- 召喚紅綠燈王：光柱 → Grok 覺醒特寫 → 地底升起 → Grok 三色光線 → 9999 ----------
-const VID = {}; function vid(k, src) { if (!VID[k]) { const v = document.createElement('video'); v.src = src; v.muted = true; v.preload = 'auto'; v.playsInline = true; VID[k] = v; } return VID[k]; }
+const VID = {}; function vid(k, src) { if (!VID[k]) { const v = document.createElement('video'); v.src = (window.MEDIA && MEDIA[src]) || src; v.muted = true; v.preload = 'auto'; v.playsInline = true; VID[k] = v; } return VID[k]; }
 vid('close', 'grok_close.mp4'); vid('atk', 'grok_attack.mp4');
 const SUM = { CLOSE: [1.1, 3.7], RISE: 3.7, ATK: [5.0, 7.3], BOOM: 7.3, END: 8.9 };
 function playVid(k, from, rate) { const v = VID[k]; try { v.currentTime = from; v.playbackRate = rate; v.play().catch(() => {}); } catch (e) {} }
