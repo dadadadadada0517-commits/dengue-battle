@@ -158,7 +158,7 @@ function title(dt) {
     T('１．在巷弄裡用方向鍵走動，靠近有「！」的地方按空白鍵調查。\n　　每找到一個孳生源，魔王的體力和速度都會下降！\n２．走到巷子最上面就會遇到魔王，進入戰鬥。\n３．角色的進度條集滿就能下指令。魔王也有進度條，\n　　集滿就會攻擊，記得注意！\n４．每人有兩個特技：針對登革熱的防治招式「效果絕佳」，\n　　角色本身特質的招式「效果不佳」。偶爾會擊中要害！\n５．絕佳招式會累積「信號魔石」，集滿就能召喚紅綠燈王。\n６．道具要選對：疑似登革熱不能吃阿斯匹靈！', 96, 100, { size: 12.5 }); }
   for (const k of pressed) { if (G.help) { if (hit([k], 'Enter', ' ', 'Escape')) { G.help = false; selectS(); } continue; }
     if (hit([k], 'ArrowUp', 'ArrowDown')) { titleCur = 1 - titleCur; cursorS(); }
-    if (hit([k], 'Enter', ' ')) { selectS(); if (titleCur === 1) G.help = true; else { newGame(); go('map'); music('music_victory.mp3', .35, 22); } } }
+    if (hit([k], 'Enter', ' ')) { selectS(); if (titleCur === 1) G.help = true; else { newGame(); go('map'); music('music_victory.m4a', .35, 22); } } }
   if (click) { const [cx, cy] = click; if (cx > 250 && cx < 390 && cy > 126 && cy < 182) { titleCur = cy < 154 ? 0 : 1; pressed.push('Enter'); } }
 }
 
@@ -175,7 +175,7 @@ function map(dt) {
     if (!vx && !vy) running = false;
     if (vx || vy) { const l = Math.hypot(vx, vy), sp = (running ? 180 : 95) * dt, nx = clamp(G.px + vx / l * sp, 40, 600), ny = clamp(G.py + vy / l * sp, 420, 930);
       if (!blocked(nx, G.py)) G.px = nx; if (!blocked(G.px, ny)) G.py = ny; G.dir = Math.abs(vx) > Math.abs(vy) ? (vx < 0 ? 'left' : 'right') : (vy < 0 ? 'up' : 'down'); G.walk = (G.walk || 0) + dt * (running ? 1.9 : 1); } else G.walk = 0;
-    if (G.py <= 425) { G.enc = now; music('music_battle.mp3', 0); snd('roar', .7); setTimeout(() => snd('encounter', .9), 900); } }
+    if (G.py <= 425) { G.enc = now; music('music_battle.m4a', 0); snd('roar', .7); setTimeout(() => snd('encounter', .9), 900); } }
   const cy = clamp(G.py - 220, 0, MAPH - H); X.save(); X.translate(0, -cy * KS);
   if (A.map) X.drawImage(A.map, 0, 0, W * KS, MAPH * KS);
   let near = -1; SPOTS.forEach(([x, y], i) => { if (G.found.has(i)) { glow(x, y, 16, 'rgba(120,255,160,.5)', .5); return; } const d = Math.hypot(G.px - x, G.py - y);
@@ -203,7 +203,7 @@ function map(dt) {
 
 // ---------- 戰鬥 ----------
 function startBattle() { const n = G.found.size; G.boss.max = G.boss.hp = Math.round(BOSS_HP0 * (1 - .07 * n)); G.boss.spd = BOSS_SPD0 * (1 - .06 * n);
-  go('battle'); music('music_battle.mp3', .4); snd('appear', .7); G.intro = now; G.rage = 0; G.weak = 0; G.says = []; G.minis = []; G.bossTurn = 0; G.nextSummon = 2; G.summonGap = 3;
+  go('battle'); music('music_battle.m4a', .4); snd('appear', .7); G.intro = now; G.rage = 0; G.weak = 0; G.says = []; G.minis = []; G.bossTurn = 0; G.nextSummon = 2; G.summonGap = 3;
   setTimeout(() => say(G.heroes[0], n >= 5 ? '孳生源清乾淨了，牠變弱了！' : '這次的蚊子好強……！', 2.2), 2600); msg(n ? `孳生源清除 ${n} 個！魔王變弱了！` : '一個孳生源都沒清……魔王火力全開！', n ? '#a8ffd8' : '#ff9090', 2.6); }
 function camOf(t) { let yaw = Math.sin(t * .2) * .3 + .05, pitch = .4, dist = 720, tg = [0, 62, 35];
   const b = G.busy; if (b && !G.summon) { const k = ease(Math.min(clamp((now - b.t) / .4), clamp((b.end - now) / .4))); const fx2 = b.who === 'boss' ? [BOSSW[0] + 80, 60, BOSSW[1]] : [(b.h.wp[0] + BOSSW[0]) / 2, 55, (b.h.wp[1] + BOSSW[1]) / 2];
@@ -264,7 +264,7 @@ function battle(dt) {
   G.nums = G.nums.filter(n => { const e = now - n.t; if (e > 1.4) return false; const bo = e < .3 ? -Math.sin(e / .3 * Math.PI) * 12 : 0;
     T(n.s, n.x, n.y + bo - e * 6, { size: 15 * n.big, align: 'center', color: n.c, stroke: 3.5, alpha: clamp((1.4 - e) / .3) }); return true; });
   ui();
-  if (!G.result && B.hp <= 0) { G.minis.forEach(m => killMini(m)); G.menu = null; G.queue = []; G.result = 'win'; G.end = now; snd('death', .8); fx('darkboom', B.x, B.y, 1.3 * B.sc, { on: B }); setTimeout(() => { music('music_victory2.mp3', .55); }, 1500); }
+  if (!G.result && B.hp <= 0) { G.minis.forEach(m => killMini(m)); G.menu = null; G.queue = []; G.result = 'win'; G.end = now; snd('death', .8); fx('darkboom', B.x, B.y, 1.3 * B.sc, { on: B }); setTimeout(() => { music('music_victory2.m4a', .55); }, 1500); }
   if (!G.result && alive().length === 0) { G.menu = null; G.result = 'lose'; G.end = now; }
   if (G.result) resultDraw();
 }
@@ -454,7 +454,7 @@ function resultDraw() { const e = now - G.end;
   } else { X.save(); X.fillStyle = `rgba(20,0,10,${clamp(e / 1.2) * .7})`; X.fillRect(0, 0, W * KS, H * KS); X.restore();
     if (e > 1) { T('GAME OVER', 320, 120, { size: 40, align: 'center', color: '#ff6070', stroke: 5 }); T('蚊子王太強了……先回巷子把孳生源清乾淨再來挑戰吧！', 320, 180, { size: 14, align: 'center' }); T('Enter：重新開始', 320, 220, { size: 12, align: 'center', color: '#ffe060' }); } }
   if (G.result === 'win' && e > 2.2 && e < 9 && pressed.some(k => hit([k], 'Enter', ' ', 'Escape'))) { G.end = now - 9; selectS(); pressed.length = 0; }
-  for (const k of pressed) if (hit([k], 'Enter', ' ') && (G.result === 'lose' ? e > 1 : e > 10)) { selectS(); go('title'); music('music_victory.mp3', .35, 22); }
+  for (const k of pressed) if (hit([k], 'Enter', ' ') && (G.result === 'lose' ? e > 1 : e > 10)) { selectS(); go('title'); music('music_victory.m4a', .35, 22); }
 }
 function card(e) { if (A.card) X.drawImage(A.card, 0, 0, W * KS, H * KS);
   for (let i = 0; i < 6; i++) pfx('confetti', (e + i * .55) % 3.2, [70, 570, 40, 600, 110, 530][i], [290, 290, 120, 120, 200, 200][i], 1.2, { dur: 3.2 });
