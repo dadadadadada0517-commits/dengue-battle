@@ -63,11 +63,29 @@ async function loadAll() {
 }
 
 // ---------- 音效（ElevenLabs＋合成）、音樂 ----------
-const SND = {}; let AC = null;
-function snd(k, v = .8) { try { const base = SND[k] || (SND[k] = new Audio((window.MEDIA && MEDIA['sfx_' + k + '.mp3']) || (window.SFX_EXT ? 'sfx_' + k + window.SFX_EXT : 'sfx/' + k + '.wav'))); const a = base.cloneNode(); a.volume = v; a.play().catch(() => {}); } catch (e) {} }
-function beep(f, d = .06, type = 'square', v = .08) { try { AC = AC || new AudioContext(); const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v; g.gain.exponentialRampToValueAtTime(.0001, AC.currentTime + d); o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + d); } catch (e) {} }
+const SND = {}, ABUF = {}; let AC = null;
+try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+function ac() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return AC; }
+function abuf(name) { if (ABUF[name]) return ABUF[name]; const url = window.MEDIA && MEDIA[name]; if (!url || !ac()) return null; const p = ABUF[name] = { buf: null };
+  fetch(url).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => AC.decodeAudioData(b, ok, no))).then(d => { p.buf = d; }).catch(() => { delete ABUF[name]; }); return p; }
+function preloadSfx() { if (window.MEDIA) for (const k of Object.keys(MEDIA)) if (k.startsWith('sfx_')) abuf(k); }
+const BGEL = new Audio(); BGEL.loop = true; BGEL.preload = 'auto'; BGEL.setAttribute('playsinline', ''); let BGM = null, BG_UNLOCKED = false;
+const SILENT = (() => { const n = 800, b = new ArrayBuffer(44 + n), v = new DataView(b), s = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  s(0, 'RIFF'); v.setUint32(4, 36 + n, true); s(8, 'WAVE'); s(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); s(36, 'data'); v.setUint32(40, n, true); for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' })); })();
+function bgmApply() { if (!BGM) return; const url = (window.MEDIA && MEDIA[BGM.__src]) || (window.BATTLE_PACKS ? null : BGM.__src); if (!url) return;
+  if (BGEL.__src !== BGM.__src) { BGEL.__src = BGM.__src; BGEL.src = url; const at = BGM.at; if (at) BGEL.addEventListener('loadedmetadata', () => { try { BGEL.currentTime = at; } catch (e) {} }, { once: true }); }
+  BGEL.volume = BGM.vol; if (!document.hidden) BGEL.play().then(() => { BG_UNLOCKED = true; }).catch(() => {}); }
+function unlockAudio() { const c = ac(); if (c) { if (c.state !== 'running') c.resume().catch(() => {}); try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch (e) {} }
+  if (BGM && (window.MEDIA && MEDIA[BGM.__src] || !window.BATTLE_PACKS)) { if (BGEL.paused) bgmApply(); }
+  else if (!BG_UNLOCKED) { BGEL.__src = null; BGEL.src = SILENT; BGEL.play().then(() => { BG_UNLOCKED = true; if (!(BGM && MEDIA[BGM.__src])) BGEL.pause(); bgmApply(); }).catch(() => {}); } }
+['touchend', 'pointerup', 'pointerdown', 'keydown', 'click'].forEach(ev => window.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
+document.addEventListener('visibilitychange', () => { if (document.hidden) { BGEL.pause(); if (AC) AC.suspend().catch(() => {}); } else { if (AC) AC.resume().catch(() => {}); if (BGM) bgmApply(); } });
+function snd(k, v = .8) { try { const n = 'sfx_' + k + '.mp3'; if (window.MEDIA && MEDIA[n]) { const p = abuf(n); if (p && p.buf && AC.state === 'running') { const s = AC.createBufferSource(), g = AC.createGain(); s.buffer = p.buf; g.gain.value = v; s.connect(g).connect(AC.destination); s.start(); } return; } if (window.BATTLE_PACKS) return; const base = SND[k] || (SND[k] = new Audio(window.SFX_EXT ? 'sfx_' + k + window.SFX_EXT : 'sfx/' + k + '.wav')); const a = base.cloneNode(); a.volume = v; a.play().catch(() => {}); } catch (e) {} }
+function beep(f, d = .06, type = 'square', v = .08) { try { if (!ac()) return; const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v; g.gain.exponentialRampToValueAtTime(.0001, AC.currentTime + d); o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + d); } catch (e) {} }
 const cursorS = () => beep(1100, .04), selectS = () => { beep(1320, .05); setTimeout(() => beep(1760, .08), 50); }, menuS = () => { beep(1400, .06, 'square', .1); setTimeout(() => beep(2100, .1, 'square', .1), 60); };
-let BGM = null; function music(src, vol = .45, at = 0) { if (BGM) BGM.pause(); BGM = new Audio((window.MEDIA && MEDIA[src]) || src); BGM.__src = src; BGM.loop = true; BGM.volume = vol; BGM.currentTime = at; BGM.play().catch(() => {}); }
+window.__aud = () => ({ ac: AC && AC.state, bgm: BGM && BGM.__src, playing: !BGEL.paused, el: BGEL.__src, t: +BGEL.currentTime.toFixed(1), sfx: Object.values(ABUF).filter(p => p.buf).length });
+function music(src, vol = .45, at = 0) { BGM = { __src: src, vol, at }; BGEL.pause(); BGEL.__src = null; bgmApply(); }
 
 // ---------- 繪圖小工具 ----------
 function T(s, x, y, o = {}) { const sz = o.size || 12; X.save(); X.globalAlpha = o.alpha ?? 1; X.font = `bold ${sz * KS}px ${FONT}`; X.textAlign = o.align || 'left'; X.textBaseline = 'top';
@@ -474,5 +492,5 @@ function frame(t) { const dt = Math.min(.05, (t - last) / 1000); last = t; now +
 window.__game = { G, go, startBattle, newGame, get scene() { return scene; } };
 A.battleReady = !window.BATTLE_PACKS;
 loadAll().then(() => { document.getElementById('load').remove(); newGame(); requestAnimationFrame(frame);
-  if (window.BATTLE_PACKS) (async () => { for (const s of BATTLE_PACKS) await new Promise(r => { const e = document.createElement('script'); e.src = s; e.onload = r; e.onerror = r; document.head.appendChild(e); }); await loadAll(); A.battleReady = true; for (const v of Object.values(VID)) if (window.MEDIA && MEDIA[v.__src] && v.src !== MEDIA[v.__src]) v.src = MEDIA[v.__src]; if (BGM && window.MEDIA && MEDIA[BGM.__src] && BGM.src !== MEDIA[BGM.__src]) { const t = BGM.currentTime, vol = BGM.volume; music(BGM.__src, vol, t); } })(); });
+  if (window.BATTLE_PACKS) (async () => { for (const s of BATTLE_PACKS) await new Promise(r => { const e = document.createElement('script'); e.src = s; e.onload = r; e.onerror = r; document.head.appendChild(e); }); await loadAll(); A.battleReady = true; for (const v of Object.values(VID)) if (window.MEDIA && MEDIA[v.__src] && v.src !== MEDIA[v.__src]) v.src = MEDIA[v.__src]; preloadSfx(); if (BGM) bgmApply(); })(); });
 })();
