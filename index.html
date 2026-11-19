@@ -1,8 +1,30 @@
-﻿<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>登革熱防治大作戰</title>
-<meta name="description" content="清除孳生源削弱魔王，用正確的防治招式打倒超級大蚊子王！登革熱防治 RPG">
-<meta property="og:type" content="website"><meta property="og:url" content="https://dadadadadada0517-commits.github.io/dengue-battle/"><meta property="og:title" content="登革熱防治大作戰"><meta property="og:description" content="清除孳生源削弱魔王，用正確的防治招式打倒超級大蚊子王！登革熱防治 RPG"><meta property="og:image" content="https://dadadadadada0517-commits.github.io/dengue-battle/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://dadadadadada0517-commits.github.io/dengue-battle/og.jpg">
-<link rel="icon" type="image/png" href="icon.png"><link rel="apple-touch-icon" href="icon.png">
-<style>html,body{height:100%;margin:0;background:#000;color:#fff;overflow:hidden}canvas{display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}#load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:bold 6vmin "Microsoft JhengHei","Noto Sans TC",sans-serif;background:#000}</style></head>
+﻿<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><title>登革熱防治大作戰</title>
+<meta name="theme-color" content="#000000"><meta name="description" content="清除孳生源削弱魔王，用正確的防治招式打倒超級大蚊子王！登革熱防治 RPG">
+<meta property="og:type" content="website"><meta property="og:url" content="https://dadadadadada0517-commits.github.io/dengue-battle/"><meta property="og:title" content="登革熱防治大作戰"><meta property="og:description" content="清除孳生源削弱魔王，用正確的防治招式打倒超級大蚊子王！點開就能玩！"><meta property="og:image" content="https://dadadadadada0517-commits.github.io/dengue-battle/og.jpg?v=1"><meta property="og:image:type" content="image/jpeg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:locale" content="zh_TW">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://dadadadadada0517-commits.github.io/dengue-battle/og.jpg?v=1">
+<link rel="icon" type="image/png" href="icon.png"><link rel="apple-touch-icon" href="icon.png"><meta name="apple-mobile-web-app-title" content="登革熱大作戰">
+<style>html,body{height:100%;margin:0;background:#000;color:#fff;overflow:hidden}canvas{display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}#load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:bold 6vmin "Microsoft JhengHei","Noto Sans TC",sans-serif;background:#000}
+.ov{display:none;position:fixed;inset:0;background:#05070f;color:#f2e8cc;font:700 17px/1.55 "PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;align-items:center;justify-content:center;z-index:30;overflow:auto;padding:20px;box-sizing:border-box}
+.box{max-width:440px;width:100%}.big{font-size:26px;color:#ffd65c;text-align:center;margin:0 0 14px}
+.step{background:#10142a;border:3px solid #3a4470;border-radius:12px;padding:12px 14px;margin:10px 0}.step b{color:#7dffa0}.step small{display:block;color:#c0c6dc;font-weight:500;font-size:15px;margin-top:4px}
+.num{display:inline-block;width:26px;height:26px;border-radius:50%;background:#7dffa0;color:#05070f;text-align:center;line-height:26px;margin-right:6px;font-size:16px}
+.warn{border-color:#ff4552}.warn b{color:#ff6a72}.warn .num{background:#ff4552;color:#fff}
+.ok{display:block;margin:16px auto 0;font:700 18px "PingFang TC","Microsoft JhengHei",sans-serif;background:#ffd65c;color:#05070f;border:0;border-radius:10px;padding:12px 22px}
+@media (orientation:portrait) and (max-width:820px){#rot{display:flex}}</style></head>
 <body><div id="load">載入中……</div><canvas id="c" width="1920" height="1080"></canvas>
+<div id="rot" class="ov"><div class="box">
+<div class="big">📱 請把手機轉成橫的</div>
+<div class="step warn" id="inappTip" style="display:none"><span class="num">!</span><b>請改用外部瀏覽器開啟</b><small>你現在是在 LINE／FB／IG／Google 等 App 裡面開啟。請點右上或右下角的「⋮」或「…」選單 →「在瀏覽器中開啟」（iPhone 用 Safari，Android 用 Chrome），音樂和音效才會正常。</small></div>
+<div class="step"><span class="num">1</span><b>先打開「自動旋轉」（解除直向鎖定）</b><small>iPhone：從螢幕右上角往下滑，打開控制中心 → 點「🔒 鎖頭＋箭頭」圖示，讓它變成灰色（關閉鎖定）。<br>Android：從螢幕上方往下滑 → 打開「自動旋轉」。</small></div>
+<div class="step"><span class="num">2</span><b>把手機轉成橫的</b><small>畫面轉過來後，遊戲就會出現。</small></div>
+</div></div>
+<div id="inapp" class="ov"><div class="box">
+<div class="big">⚠ 建議用外部瀏覽器開啟</div>
+<div class="step warn"><span class="num">!</span><b>你現在是在 App 裡開啟</b><small>在 LINE、FB、IG、Google App 裡面玩，音樂、音效和動畫可能不正常。<br>請點畫面上的「⋮」或「…」選單 →「在瀏覽器中開啟」（iPhone 用 Safari，Android 用 Chrome）。</small></div>
+<button class="ok" id="inappOk">知道了，繼續在這裡玩</button>
+</div></div>
+<script>(function(){var ua=navigator.userAgent||'',inApp=/Line\/|FBAN|FBAV|FB_IAB|FBIOS|Instagram|GSA\/|Messenger|MicroMessenger|KAKAOTALK|Threads|Barcelona/i.test(ua);
+if(!inApp)return;document.getElementById('inappTip').style.display='block';var seen=false;try{seen=sessionStorage.getItem('inappOk')==='1'}catch(e){}
+var ov=document.getElementById('inapp'),land=function(){return window.matchMedia('(orientation:landscape)').matches||window.innerWidth>820},upd=function(){ov.style.display=!seen&&land()?'flex':'none'};upd();window.addEventListener('resize',upd);
+document.getElementById('inappOk').addEventListener('click',function(){seen=true;try{sessionStorage.setItem('inappOk','1')}catch(e){}upd()})})();</script>
 <script>window.MEDIA={};window.MED=function(n,t,s){window.MEDIA[n]='data:'+t+';base64,'+s.split('').reverse().join('');};window.MEDP=function(n,t,i,k,s){var P=window.__P=window.__P||{};(P[n]=P[n]||[])[i]=s;if(P[n].filter(Boolean).length===k)window.MED(n,t,P[n].join(''));};window.SFX_EXT='.mp3';window.BATTLE_PACKS=['snd1.js','snd2.js','sp1.js','sp2.js','sp3.js','sp4.js','sp5.js','sp6.js','sp7.js','sp8.js','sp9.js','sp10.js','sp11.js','bt1.js','bt2.js','bt3.js','bt4.js','bt5.js','bt6.js','bt7.js','bt8.js'];</script><script src="boot.js"></script><script src="gl3d.js"></script><script src="game.js"></script></body></html>

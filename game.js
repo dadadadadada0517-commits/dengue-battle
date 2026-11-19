@@ -97,8 +97,8 @@ if (TOUCH) {
   #pad b{width:11.5vmin;height:11.5vmin} #pad b.on,#ab b.on{background:rgba(255,210,90,.6)}
   #ab{position:fixed;right:3vmin;bottom:30vmin;width:30vmin;height:26vmin;z-index:9;touch-action:none}
   #ab b{width:13vmin;height:13vmin;border-radius:50%}
-  #rot{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:#000;color:#ffe060;font:bold 6vw "Microsoft JhengHei",sans-serif;text-align:center}
-  @media (orientation:portrait){#rot{display:flex}}`; document.head.appendChild(css);
+  #rot:not(.ov){position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:#000;color:#ffe060;font:bold 6vw "Microsoft JhengHei",sans-serif;text-align:center}
+  @media (orientation:portrait){#rot:not(.ov){display:flex}}`; document.head.appendChild(css);
   const mk = (par, txt, k, l, t) => { const b = document.createElement('b'); b.textContent = txt; b.style.left = l; b.style.top = t; par.appendChild(b);
     const on = e => { e.preventDefault(); if (!keys[k]) pressed.push(k); keys[k] = true; b.classList.add('on'); try { if (!document.fullscreenElement) document.documentElement.requestFullscreen().then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (x) {} };
     const off = e => { e.preventDefault(); keys[k] = false; b.classList.remove('on'); };
@@ -106,7 +106,7 @@ if (TOUCH) {
   const pad = document.createElement('div'); pad.id = 'pad'; document.body.appendChild(pad);
   mk(pad, '▲', 'ArrowUp', '11.25vmin', '0'); mk(pad, '▼', 'ArrowDown', '11.25vmin', '22.5vmin'); mk(pad, '◀', 'ArrowLeft', '0', '11.25vmin'); mk(pad, '▶', 'ArrowRight', '22.5vmin', '11.25vmin');
   const ab = document.createElement('div'); ab.id = 'ab'; document.body.appendChild(ab); mk(ab, 'A', ' ', '16vmin', '0'); mk(ab, 'B', 'Escape', '0', '12vmin');
-  const rot = document.createElement('div'); rot.id = 'rot'; rot.innerHTML = '請把手機轉成橫向<br>⟳'; document.body.appendChild(rot);
+  if (!document.getElementById('rot')) { const rot = document.createElement('div'); rot.id = 'rot'; rot.innerHTML = '請把手機轉成橫向<br>⟳'; document.body.appendChild(rot); }
   C.addEventListener('touchstart', e => { const r = C.getBoundingClientRect(), p = e.touches[0]; click = [(p.clientX - r.left) / r.width * W, (p.clientY - r.top) / r.height * H]; }, { passive: true });
 }
 const HINT = TOUCH ? { title: '十字鍵選擇　A 決定', map: '十字鍵移動（連點兩下跑步）　A 調查　往上走 → 魔王', act: 'A：調查', back: 'B：返回', next: 'A：繼續' }
