@@ -45,29 +45,29 @@ function sliceCols(img, minW) { const k = keyed(img), w = k.width, h = k.height,
   const fr = segs.filter(([a, b]) => b - a > minW).map(([sx, ex]) => { let top = h, bot = 0; for (let y = 0; y < h; y++) for (let x = sx; x <= ex; x++) if (d[(y * w + x) * 4 + 3]) { if (y < top) top = y; if (y > bot) bot = y; } return { sx, ex, top, bot }; });
   const base = Math.max(...fr.map(f => f.bot)); return fr.map(f => ({ k, ...f, base })); }
 async function loadAll() {
-  for (const [k, [hh, rows]] of Object.entries(CFG)) { const img = await loadImg(SHEETS[k]); if (!img) continue; const rs = sliceSheet(img), got = {};
+  for (const [k, [hh, rows]] of Object.entries(CFG)) { if (A.spr[k] || !SHEETS[k]) continue; const img = await loadImg(SHEETS[k]); if (!img) continue; const rs = sliceSheet(img), got = {};
     const f0 = rs[0].frames[0], enemy = k === 'mosquito', s = hh / ((enemy ? f0.bot : f0.base) - f0.top + 1);
     rs.forEach((r, ri) => r.frames.forEach((f, ci) => { const name = (rows[ri] || [])[ci]; if (!name) return; const bot = enemy ? f.bot : f.base, fw = f.ex - f.sx + 1, fh = bot - f.top + 1;
       got[name] = cut(r.src, f.sx, f.top, fw, fh, fh * s, enemy ? fw / 2 : f.mx - f.sx); }));
     for (const p of ['r', 'act', 'c', 'j']) for (let i = 0; i < 9; i++) if (!got[p + i]) got[p + i] = got[p + (i % 4)] || got[p + 0] || got.stand || got.f0;
     A.spr[k] = got; }
-  const bu = await loadImg(SHEETS.boss); if (bu) { const kb = keyed(bu), [x0, y0, x1, y1] = kb.bb; A.boss = cut(kb, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 280 * (y1 - y0 + 1) / (x1 - x0 + 1)); }
-  const w = await loadImg(SHEETS.walk); if (w) { const rs = sliceSheet(w), names = ['down', 'up', 'left', 'right'];
+  const bu = !A.boss && await loadImg(SHEETS.boss); if (bu) { const kb = keyed(bu), [x0, y0, x1, y1] = kb.bb; A.boss = cut(kb, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 280 * (y1 - y0 + 1) / (x1 - x0 + 1)); }
+  const w = !A.walk.up1 && await loadImg(SHEETS.walk); if (w) { const rs = sliceSheet(w), names = ['down', 'up', 'left', 'right'];
     rs.slice(0, 4).forEach((r, ri) => r.frames.slice(0, 3).forEach((f, ci) => { A.walk[names[ri] + ci] = cut(r.src, f.sx, f.top, f.ex - f.sx + 1, f.base - f.top + 1, 44, f.mx - f.sx); })); }
-  for (const k of ['map', 'title', 'card']) A[k] = await loadImg(SHEETS[k]);
-  for (const k of ['robot', 'robot_fire', 'gem', 'victory_logo']) { const i = await loadImg(SHEETS[k]); if (i) A[k] = trimK(i); }
-  for (const [id, key, hh] of [['R', 'hurt', 80], ['B', 'hurt_bunny', 70], ['T', 'hurt_teacher', 74], ['M', 'hurt_mountain', 66]]) { const i = await loadImg(SHEETS[key]); if (!i) continue;
+  for (const k of ['map', 'title', 'card']) A[k] = A[k] || await loadImg(SHEETS[k]);
+  for (const k of ['robot', 'robot_fire', 'gem', 'victory_logo']) { if (A[k]) continue; const i = await loadImg(SHEETS[k]); if (i) A[k] = trimK(i); }
+  for (const [id, key, hh] of [['R', 'hurt', 80], ['B', 'hurt_bunny', 70], ['T', 'hurt_teacher', 74], ['M', 'hurt_mountain', 66]]) { if (A.hurt[id]) continue; const i = await loadImg(SHEETS[key]); if (!i) continue;
     const fr = sliceCols(i, 80), s = hh / (fr[0].base - fr[0].top + 1); A.hurt[id] = fr.map(f => cut(f.k, f.sx, f.top, f.ex - f.sx + 1, f.base - f.top + 1, (f.base - f.top + 1) * s)); }
-  if (window.PFXMETA) for (const [k, m] of Object.entries(PFXMETA)) { const i = await loadImg(SHEETS['pfx_' + k]); if (i) A.pfx[k] = { i, m }; }
-  await GL3D.init(SHEETS, loadImg, keyed, sliceSheet);
+  if (window.PFXMETA) for (const [k, m] of Object.entries(PFXMETA)) { if (A.pfx[k] || !SHEETS['pfx_' + k]) continue; const i = await loadImg(SHEETS['pfx_' + k]); if (i) A.pfx[k] = { i, m }; }
+  if (SHEETS.floorB && !GL3D.S.ready) await GL3D.init(SHEETS, loadImg, keyed, sliceSheet);
 }
 
 // ---------- 音效（ElevenLabs＋合成）、音樂 ----------
 const SND = {}; let AC = null;
-function snd(k, v = .8) { try { const base = SND[k] || (SND[k] = new Audio((window.MEDIA && MEDIA['sfx_' + k + '.wav']) || 'sfx_' + k + '.wav')); const a = base.cloneNode(); a.volume = v; a.play().catch(() => {}); } catch (e) {} }
+function snd(k, v = .8) { try { const base = SND[k] || (SND[k] = new Audio((window.MEDIA && MEDIA['sfx_' + k + '.mp3']) || (window.SFX_EXT ? 'sfx_' + k + window.SFX_EXT : 'sfx/' + k + '.wav'))); const a = base.cloneNode(); a.volume = v; a.play().catch(() => {}); } catch (e) {} }
 function beep(f, d = .06, type = 'square', v = .08) { try { AC = AC || new AudioContext(); const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v; g.gain.exponentialRampToValueAtTime(.0001, AC.currentTime + d); o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + d); } catch (e) {} }
 const cursorS = () => beep(1100, .04), selectS = () => { beep(1320, .05); setTimeout(() => beep(1760, .08), 50); }, menuS = () => { beep(1400, .06, 'square', .1); setTimeout(() => beep(2100, .1, 'square', .1), 60); };
-let BGM = null; function music(src, vol = .45, at = 0) { if (BGM) BGM.pause(); BGM = new Audio((window.MEDIA && MEDIA[src]) || src); BGM.loop = true; BGM.volume = vol; BGM.currentTime = at; BGM.play().catch(() => {}); }
+let BGM = null; function music(src, vol = .45, at = 0) { if (BGM) BGM.pause(); BGM = new Audio((window.MEDIA && MEDIA[src]) || src); BGM.__src = src; BGM.loop = true; BGM.volume = vol; BGM.currentTime = at; BGM.play().catch(() => {}); }
 
 // ---------- 繪圖小工具 ----------
 function T(s, x, y, o = {}) { const sz = o.size || 12; X.save(); X.globalAlpha = o.alpha ?? 1; X.font = `bold ${sz * KS}px ${FONT}`; X.textAlign = o.align || 'left'; X.textBaseline = 'top';
@@ -198,7 +198,7 @@ function map(dt) {
   for (const k of pressed) if (hit([k], ' ', 'Enter')) { if (G.info) { G.info = null; selectS(); } else if (near >= 0 && G.enc < 0) { G.found.add(near); G.info = { i: near, t: now }; snd('cast', .6); menuS(); } }
   if (G.enc >= 0) { const e = now - G.enc; if (e > .9) T('嗡嗡嗡嗡嗡──！！ 超級大蚊子王出現了！', 320, 150, { size: 18, align: 'center', color: '#ff9090' });
     if (e > 1.6) { const q = clamp((e - 1.6) / .7); X.save(); X.translate(W / 2 * KS, H / 2 * KS); X.rotate(e * 6); X.fillStyle = '#000'; for (let i = 0; i < 8; i++) { X.beginPath(); X.moveTo(0, 0); X.arc(0, 0, 420 * KS, i / 8 * 6.283, i / 8 * 6.283 + q * 6.283 / 8); X.closePath(); X.fill(); } X.restore(); }
-    if (e > 2.4) startBattle(); }
+    if (e > 2.4) { if (A.battleReady) startBattle(); else T('戰鬥準備中……', 320, 300, { size: 14, align: 'center', color: '#ffe060' }); } }
 }
 
 // ---------- 戰鬥 ----------
@@ -411,7 +411,7 @@ function bossAct() { const B = G.boss, al = alive(); if (!al.length) return; B.a
     done: () => { B.lunge = 0; if (cover) { M.off = 0; M.hop = 0; M.anim = null; } } };
 }
 // ---------- 召喚紅綠燈王：光柱 → Grok 覺醒特寫 → 地底升起 → Grok 三色光線 → 9999 ----------
-const VID = {}; function vid(k, src) { if (!VID[k]) { const v = document.createElement('video'); v.src = (window.MEDIA && MEDIA[src]) || src; v.muted = true; v.preload = 'auto'; v.playsInline = true; VID[k] = v; } return VID[k]; }
+const VID = {}; function vid(k, src) { if (!VID[k]) { const v = document.createElement('video'); v.src = (window.MEDIA && MEDIA[src]) || src; v.__src = src; v.muted = true; v.preload = 'auto'; v.playsInline = true; VID[k] = v; } return VID[k]; }
 vid('close', 'grok_close.mp4'); vid('atk', 'grok_attack.mp4');
 const SUM = { CLOSE: [1.1, 3.7], RISE: 3.7, ATK: [5.0, 7.3], BOOM: 7.3, END: 8.9 };
 function playVid(k, from, rate) { const v = VID[k]; try { v.currentTime = from; v.playbackRate = rate; v.play().catch(() => {}); } catch (e) {} }
@@ -433,6 +433,14 @@ function summonDraw() { const e = now - G.summon.t, p = GL3D.project(140, 0, 30)
     if (k >= 1) { const L = [[.276, .264, '#ff3a2a'], [.276, .411, '#ffd21e'], [.27, .558, '#3aff5a']]; L.forEach(([fx2, fy, c]) => glow(rx - w / 2 + fx2 * w, ry - RH + fy * RH, 15 + Math.sin(now * 20) * 3, c, 1 - out)); } }
   // Grok 動畫：全畫面
   const drawV = (k, [a, b]) => { if (e < a || e > b) return; const v = VID[k]; if (!v || v.readyState < 2) return; const f = Math.min(clamp((e - a) / .2), clamp((b - e) / .2)); X.save(); X.globalAlpha = f; X.drawImage(v, 0, 0, W * KS, H * KS); X.restore(); };
+  const vOK = k => VID[k] && VID[k].readyState >= 2;
+  if (!vOK('atk') && e > SUM.ATK[0] && e < SUM.ATK[1] && A.robot_fire) { const w = RH * A.robot_fire.width / A.robot_fire.height, B = G.boss, L = [[.276, .264, '#ff3a2a'], [.276, .411, '#ffd21e'], [.27, .558, '#3aff5a']];
+    L.forEach(([fx2, fy, c], i) => { const lx = rx - w / 2 + fx2 * w, ly = ry - RH + fy * RH, tx = B.x + 30 * B.sc, ty = B.y - (130 - i * 30) * B.sc, kk = clamp((e - SUM.ATK[0] - i * .12) / .3); glow(lx, ly, 26, c, 1);
+      X.save(); X.globalCompositeOperation = 'lighter'; X.lineCap = 'round'; for (const [lw, cc] of [[26, c], [13, c], [6, '#fff']]) { X.strokeStyle = cc; X.globalAlpha = lw > 13 ? .35 : 1; X.lineWidth = (lw + Math.sin(now * 60) * 2) * KS; X.beginPath(); X.moveTo(lx * KS, ly * KS); X.lineTo(lerp(lx, tx, kk) * KS, lerp(ly, ty, kk) * KS); X.stroke(); } X.restore();
+      if (kk >= 1) glow(tx, ty, 40 + Math.sin(now * 30) * 8, c, .9); }); }
+  if (!vOK('close') && e > SUM.CLOSE[0] && e < SUM.CLOSE[1] && A.robot_fire) { const k = clamp((e - SUM.CLOSE[0]) / (SUM.CLOSE[1] - SUM.CLOSE[0])), img = A.robot_fire, h = H * (1.5 + .3 * k), w = h * img.width / img.height;
+    X.save(); X.fillStyle = 'rgba(40,0,40,.85)'; X.fillRect(0, 0, W * KS, H * KS); X.globalCompositeOperation = 'lighter'; const gg = X.createRadialGradient(W / 2 * KS, H / 2 * KS, 0, W / 2 * KS, H / 2 * KS, 300 * KS); gg.addColorStop(0, 'rgba(255,180,240,.8)'); gg.addColorStop(1, 'rgba(255,80,200,0)'); X.fillStyle = gg; X.fillRect(0, 0, W * KS, H * KS); X.globalCompositeOperation = 'source-over';
+    X.drawImage(img, (W / 2 - w / 2) * KS, (H * .15 - k * H * .5) * KS, w * KS, h * KS); X.restore(); for (let j = 0; j < 30; j++) { const q = (e * .8 + hash(j)) % 1; glow(hash(j + 3) * W, H - q * H, 3, '#ffc8f0', 1 - q); } }
   drawV('close', SUM.CLOSE); drawV('atk', SUM.ATK);
 }// ---------- 結果 ----------
 function resultDraw() { const e = now - G.end;
@@ -464,5 +472,7 @@ function frame(t) { const dt = Math.min(.05, (t - last) / 1000); last = t; now +
   if (now - st < .4) { X.fillStyle = `rgba(0,0,0,${1 - (now - st) / .4})`; X.fillRect(0, 0, C.width, C.height); }
   pressed.length = 0; click = null; requestAnimationFrame(frame); }
 window.__game = { G, go, startBattle, newGame, get scene() { return scene; } };
-loadAll().then(() => { document.getElementById('load').remove(); newGame(); requestAnimationFrame(frame); });
+A.battleReady = !window.BATTLE_PACKS;
+loadAll().then(() => { document.getElementById('load').remove(); newGame(); requestAnimationFrame(frame);
+  if (window.BATTLE_PACKS) (async () => { for (const s of BATTLE_PACKS) await new Promise(r => { const e = document.createElement('script'); e.src = s; e.onload = r; e.onerror = r; document.head.appendChild(e); }); await loadAll(); A.battleReady = true; for (const v of Object.values(VID)) if (window.MEDIA && MEDIA[v.__src] && v.src !== MEDIA[v.__src]) v.src = MEDIA[v.__src]; if (BGM && window.MEDIA && MEDIA[BGM.__src] && BGM.src !== MEDIA[BGM.__src]) { const t = BGM.currentTime, vol = BGM.volume; music(BGM.__src, vol, t); } })(); });
 })();
