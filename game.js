@@ -144,7 +144,8 @@ function newGame() { Object.assign(G, { px: 318, py: 905, dir: 'up', found: new 
 function go(s) { scene = s; st = now; }
 const msg = (s, c = '#fff', d = 1.8) => G.msgs.push({ s, c, t: now, d });
 const num = (s, x, y, c = '#fff', big = 1) => G.nums.push({ s, x, y, c, t: now, big });
-const fx = (n, x, y, s = 1, o = {}) => G.fxs.push({ n, x, y, s, o, t: now + (o.delay || 0) });
+const epos = e => e === G.boss ? [e.x + (e.lunge || 0), e.y, e.sc] : e.mx != null ? [e.mx, e.my, e.sc] : [e.x - (e.off || 0), e.y - (e.hop || 0), e.sc];
+const fx = (n, x, y, s = 1, o = {}) => { const f = { n, x, y, s, o, t: now + (o.delay || 0) }; if (o.on) { const [px, py, ps] = epos(o.on); f.rx = (x - px) / ps; f.ry = (y - py) / ps; f.rs = s / ps; } G.fxs.push(f); };
 
 // ---------- 標題 ----------
 function title(dt) {
@@ -202,7 +203,7 @@ function map(dt) {
 
 // ---------- 戰鬥 ----------
 function startBattle() { const n = G.found.size; G.boss.max = G.boss.hp = Math.round(BOSS_HP0 * (1 - .07 * n)); G.boss.spd = BOSS_SPD0 * (1 - .06 * n);
-  go('battle'); music('music_battle.mp3', .4); snd('appear', .7); G.intro = now; G.rage = 0; G.weak = 0; G.says = [];
+  go('battle'); music('music_battle.mp3', .4); snd('appear', .7); G.intro = now; G.rage = 0; G.weak = 0; G.says = []; G.minis = []; G.bossTurn = 0; G.nextSummon = 2; G.summonGap = 3;
   setTimeout(() => say(G.heroes[0], n >= 5 ? '孳生源清乾淨了，牠變弱了！' : '這次的蚊子好強……！', 2.2), 2600); msg(n ? `孳生源清除 ${n} 個！魔王變弱了！` : '一個孳生源都沒清……魔王火力全開！', n ? '#a8ffd8' : '#ff9090', 2.6); }
 function camOf(t) { let yaw = Math.sin(t * .2) * .3 + .05, pitch = .4, dist = 720, tg = [0, 62, 35];
   const b = G.busy; if (b && !G.summon) { const k = ease(Math.min(clamp((now - b.t) / .4), clamp((b.end - now) / .4))); const fx2 = b.who === 'boss' ? [BOSSW[0] + 80, 60, BOSSW[1]] : [(b.h.wp[0] + BOSSW[0]) / 2, 55, (b.h.wp[1] + BOSSW[1]) / 2];
@@ -219,12 +220,15 @@ function battle(dt) {
   // ATB（下指令時暫停＝等待模式）
   const wait = G.menu || G.busy || G.result || now - G.intro < 2.2;
   if (!wait) { G.heroes.forEach(h => { if (h.ko || h.atb >= 1) return; h.atb = Math.min(1, h.atb + dt * .16 * h.spd * (h.fever > 0 ? .55 : 1)); if (h.atb >= 1 && !G.queue.includes(h)) { G.queue.push(h); beep(1568, .12, 'sine', .07); } });
-    G.boss.atb = Math.min(1, G.boss.atb + dt * .13 * G.boss.spd); if (G.boss.atb >= 1) bossAct(); else if (G.queue.length && !G.menu) openMenu(G.queue.shift()); }
+    G.boss.atb = Math.min(1, G.boss.atb + dt * .13 * G.boss.spd);
+    for (const m of G.minis) { if (m.dead || m.born > now - 1.2) continue; m.atb += dt * .2 * m.spd; if (m.atb >= 1 && !G.busy) { m.atb = 0; miniAct(m); break; } }
+    if (G.busy) {} else if (G.boss.atb >= 1) bossAct(); else if (G.queue.length && !G.menu) openMenu(G.queue.shift()); }
   // 魔王
   const B = G.boss; if (A.boss && !(G.result === 'win' && now - G.end > 1.6)) { let bx = B.x + (B.lunge || 0), by = B.y + Math.sin(now * 2.1) * 4; const ht = now - B.hurt; if (ht < .3) bx += Math.sin(now * 90) * 5;
     const dead = G.result === 'win' ? clamp((now - G.end) / 1.5) : 0;
     X.save(); X.globalAlpha = .35 * (1 - dead); X.fillStyle = '#000'; X.beginPath(); X.ellipse((B.x + 10 * B.sc) * KS, B.y * KS, 110 * B.sc * KS, 9 * B.sc * KS, 0, 0, 7); X.fill(); X.restore();
     spr(A.boss, bx, by, B.sc, { alpha: 1 - dead, tint: ht < .12 ? 'rgba(255,255,255,.7)' : B.hp < B.max * .3 ? `rgba(255,0,40,${.15 + .1 * Math.sin(now * 6)})` : null }); }
+  minisDraw();
   // 隊員
   G.heroes.forEach((h, i) => { const S = A.spr[h.sheet]; if (!S) return; let fr = S.stand, x = h.x - (h.off || 0), y = h.y - (h.hop || 0), flip = true;
     if (G.summon && now - G.summon.t < SUM.END) { const e = now - G.summon.t, E = SUM.END, a = e < .7 ? 1 - e / .7 : e > E - .6 ? (e - (E - .6)) / .6 : 0, pil = e < 1.1 ? Math.sin(clamp(e / 1.1) * Math.PI) : e > E - .8 ? Math.sin(clamp((e - (E - .8)) / .8) * Math.PI) : 0;
@@ -246,12 +250,12 @@ function battle(dt) {
     if (tired) { for (let j = 0; j < 2; j++) { const q = (now * 1.4 + j * .5 + i * .3) % 1; X.save(); X.globalAlpha = .6 * Math.sin(q * Math.PI); X.fillStyle = '#e8f4ff'; X.beginPath(); X.ellipse((x - 14 * h.sc - q * 10) * KS, (y - fr.lh * h.sc * .72 + q * 4) * KS, (3 + q * 4) * KS, (2 + q * 2) * KS, 0, 0, 7); X.fill(); X.restore(); }
       const sq = (now * .9 + i * .4) % 1; X.save(); X.globalAlpha = .8 * (1 - sq); X.fillStyle = '#8fd0ff'; X.beginPath(); X.ellipse((x + 6 * h.sc) * KS, (y - fr.lh * h.sc * .9 + sq * 14) * KS, 1.6 * KS, 2.6 * KS, 0, 0, 7); X.fill(); X.restore(); }
     if (h.fever > 0) for (let j = 0; j < 5; j++) { const q = (now * .9 + j / 5) % 1; X.save(); X.globalAlpha = .5 * Math.sin(q * Math.PI); X.fillStyle = '#fff'; X.beginPath(); X.arc((x - 4 + Math.sin(q * 8 + j) * 6) * KS, (y - fr.lh * h.sc - 4 - q * 22) * KS, (2 + q * 4) * KS, 0, 7); X.fill(); X.restore(); }
-    if (G.shield > 0) glow(h.x, h.y - 30 * h.sc, 32 * h.sc, 'rgba(120,255,220,.25)', .45);
+    if (G.shield > 0) { const P = A.pfx.shield; if (P) { const d = P.m.n / P.m.fps; pfx('shield', d * .35 + (now * .5 + i * .2) % (d * .4), x, y - 8 * h.sc, h.sc * 1.05, { add: true, alpha: .75, dur: d }); } glow(x, y - 30 * h.sc, 30 * h.sc, 'rgba(120,255,220,.2)', .35); }
     if (G.menu && G.menu.h === h) T('▼', x, y - fr.lh * h.sc - 18 - Math.abs(Math.sin(now * 6)) * 4, { size: 14, align: 'center', color: '#ffe060' }); });
   // 召喚動畫
   if (G.summon) summonDraw();
   // 特效
-  G.fxs = G.fxs.filter(f => { const e = now - f.t; if (e < 0) return true; const P = A.pfx[f.n]; if (!P) return false; if (e > P.m.n / P.m.fps) return false; pfx(f.n, e, f.x, f.y, f.s, f.o); return true; });
+  G.fxs = G.fxs.filter(f => { const e = now - f.t; if (e < 0) return true; const P = A.pfx[f.n]; if (!P) return false; if (e > P.m.n / P.m.fps) return false; let x = f.x, y = f.y, s = f.s; if (f.o.on) { if (f.o.on.dead) return false; const [px, py, ps] = epos(f.o.on); x = px + f.rx * ps; y = py + f.ry * ps; s = f.rs * ps; } pfx(f.n, e, x, y, s, f.o); return true; });
   X.restore();
   // 進行中的動作
   if (G.busy && now >= G.busy.end) { const b = G.busy; G.busy = null; if (b.done) b.done(); }
@@ -260,14 +264,14 @@ function battle(dt) {
   G.nums = G.nums.filter(n => { const e = now - n.t; if (e > 1.4) return false; const bo = e < .3 ? -Math.sin(e / .3 * Math.PI) * 12 : 0;
     T(n.s, n.x, n.y + bo - e * 6, { size: 15 * n.big, align: 'center', color: n.c, stroke: 3.5, alpha: clamp((1.4 - e) / .3) }); return true; });
   ui();
-  if (!G.result && B.hp <= 0) { G.menu = null; G.queue = []; G.result = 'win'; G.end = now; snd('death', .8); fx('darkboom', B.x, B.y, 1.3 * B.sc); setTimeout(() => { music('music_victory2.mp3', .55); }, 1500); }
+  if (!G.result && B.hp <= 0) { G.minis.forEach(m => killMini(m)); G.menu = null; G.queue = []; G.result = 'win'; G.end = now; snd('death', .8); fx('darkboom', B.x, B.y, 1.3 * B.sc, { on: B }); setTimeout(() => { music('music_victory2.mp3', .55); }, 1500); }
   if (!G.result && alive().length === 0) { G.menu = null; G.result = 'lose'; G.end = now; }
   if (G.result) resultDraw();
 }
 function ui() {
   const B = G.boss;
   // 魔王：名字、血條、進度條
-  T('超級大蚊子王', 320, 4, { size: 12, align: 'center', color: B.hp < B.max * .3 ? '#ffb0b0' : '#fff' });
+  T('超級大蚊子王', 320, 4, { size: 12, align: 'center', color: B.hp < B.max * .3 ? '#ffb0b0' : '#fff' }); { const mc = (G.minis || []).filter(m => !m.dead).length; if (mc) T('斑蚊小兵 ×' + mc, 436, 4, { size: 9.5, color: '#ffb0c0' }); else if (G.nextSummon != null && !G.result) T('召喚倒數 ' + Math.max(0, G.nextSummon - G.bossTurn) + ' 回合', 436, 6, { size: 8, color: '#c0a0b0' }); }
   X.save(); X.fillStyle = 'rgba(0,0,10,.75)'; X.beginPath(); X.roundRect(208 * KS, 21 * KS, 224 * KS, 8 * KS, 4 * KS); X.fill();
   const g = X.createLinearGradient(0, 21 * KS, 0, 29 * KS); g.addColorStop(0, '#ff9a9a'); g.addColorStop(1, '#c01830'); X.fillStyle = g; X.beginPath(); X.roundRect(209 * KS, 22 * KS, 222 * clamp(B.hp / B.max) * KS, 6 * KS, 3 * KS); X.fill(); X.restore();
   T(`${Math.max(0, Math.round(B.hp))} / ${B.max}`, 436, 19, { size: 8.5, color: '#ffd0d0' });
@@ -314,13 +318,13 @@ function menuDraw() { const m = G.menu, h = m.h, items = menuItems(), k = ease(c
 }
 // ---------- 我方行動 ----------
 function finish(h) { h.atb = 0; h.off = 0; h.lunge = 0; h.hop = 0; h.anim = null; }
-function heroAct(h, sk) { const B = G.boss, i = HEROES.findIndex(x => x.id === h.id); snd('cast', .45); fx('spellcharge', h.x, h.y, h.sc, { add: true });
+function heroAct(h, sk) { const B = G.boss, i = HEROES.findIndex(x => x.id === h.id); snd('cast', .45); fx('spellcharge', h.x, h.y, h.sc, { add: true, on: h });
   if (sk.scan) { G.busy = { who: h.id, h, t: now, end: now + 1.8, side: -.3, step: e => { h.anim = e < 1.2 ? 'look' + (Math.floor(e * 2) % 2) : 'c0'; },
       done: () => { G.weak = 3; msg('效果絕佳！找出花盆底盤、水桶、積水！魔王防禦下降（接下來 3 次攻擊傷害提高）', '#80ffb0', 2.6); say(h, '孳生源，全部被我找到了！', 1.8, '#c8ffd8'); G.gem = Math.min(4, G.gem + 1); finish(h); } };
-    fx('scanner', h.x - 30, h.y, 1.5 * h.sc, { flip: true, add: true }); const B = G.boss; [0, 1, 2].forEach(j => setTimeout(() => { fx('sunburst', B.x + (j - 1) * 60 * B.sc, B.y - 10, .8, { add: true }); num(['！花盆底盤', '！水桶', '！積水'][j], B.x + (j - 1) * 70 * B.sc, B.y - 30 - j * 14, '#ffe060', .9); snd('cast', .4); }, 500 + j * 350));
+    fx('scanner', h.x - 30, h.y, 1.5 * h.sc, { flip: true, add: true }); const B = G.boss; [0, 1, 2].forEach(j => setTimeout(() => { fx('sunburst', B.x + (j - 1) * 60 * B.sc, B.y - 10, .8, { add: true, on: B }); num(['！花盆底盤', '！水桶', '！積水'][j], B.x + (j - 1) * 70 * B.sc, B.y - 30 - j * 14, '#ffe060', .9); snd('cast', .4); }, 500 + j * 350));
     msg(sk.n, '#ffe680', 1.4); return; }
   if (sk.shield) { G.busy = { who: h.id, h, t: now, end: now + 1.6, side: .35, step: e => { h.anim = 'act' + (Math.floor(e * 6) % 4); },
-      done: () => { G.shield = 2; msg('效果絕佳！全體防蚊力上升（魔王下兩次攻擊減傷）', '#80ffb0'); snd('block', .8); G.heroes.forEach(x => !x.ko && fx('shield', x.x, x.y - 10 * x.sc, x.sc * 1.1, { add: true })); G.gem = Math.min(4, G.gem + 1); finish(h); } };
+      done: () => { G.shield = 2; msg('效果絕佳！全體防蚊力上升（魔王下兩次攻擊減傷）', '#80ffb0'); snd('block', .8); G.heroes.forEach(x => !x.ko && fx('shield', x.x, x.y - 10 * x.sc, x.sc * 1.1, { add: true, on: x })); G.gem = Math.min(4, G.gem + 1); finish(h); } };
     msg(sk.n, '#ffe680', 1.4); return; }
   msg(sk.n === '攻擊' ? h.name + ' 的攻擊' : sk.n, '#ffe680', 1.2);
   const dist = (h.x - B.x) * .6, hitT = .55;
@@ -340,16 +344,43 @@ function saysDraw() { G.says = (G.says || []).filter(x => now - x.t < x.d); for 
     T(b.s, x, top - 19, { size: 10.5, align: 'center', color: '#1a1a3a', stroke: 0, alpha: a * k }); } }
 function koRage(dead) { G.rage = (G.rage || 0) + 1; const al = alive(); if (!al.length) return; msg(`${dead.name} 倒下了！　其他英雄的攻擊力提升！`, '#ff9a5a', 2.4); snd('awaken', .5);
   const sp = al[Math.floor(Math.random() * al.length)]; setTimeout(() => say(sp, ['可惡！我跟你拚了！', `${dead.name}，我會替你報仇！`, '不可原諒……看我的厲害！'][Math.floor(Math.random() * 3)], 2.4, '#ffb0a0'), 700);
-  al.forEach((x, i) => { setTimeout(() => { fx('spellcharge', x.x, x.y, x.sc * 1.2, { add: true }); num('攻擊力 UP！', x.x, x.y - 92 * x.sc, '#ffa040', 1); }, 300 + i * 150); }); }
+  al.forEach((x, i) => { setTimeout(() => { fx('spellcharge', x.x, x.y, x.sc * 1.2, { add: true, on: x }); num('攻擊力 UP！', x.x, x.y - 92 * x.sc, '#ffa040', 1); }, 300 + i * 150); }); }
+// ---------- 斑蚊小兵 ----------
+const MINIW = [[-60, 70, -40], [-20, 95, 40], [-80, 55, 110]];
+function summonMinis() { const B = G.boss; snd('roar', .7); msg('超級大蚊子王：出來吧，我的子孫們！（召喚斑蚊小兵）', '#ff9090', 2);
+  G.busy = { who: 'boss', t: now, end: now + 1.8, step: e => { B.lunge = -Math.sin(clamp(e / 1.2) * Math.PI) * 12; }, done: () => { B.lunge = 0; } };
+  G.minis = MINIW.map((w, i) => ({ w, hp: 900, max: 900, atb: Math.random() * .4, spd: .8 + Math.random() * .5, born: now + .3 + i * .25, hurt: -9, dead: false, mx: B.x, my: B.y, sc: B.sc }));
+  G.minis.forEach((m, i) => setTimeout(() => { fx('poof', m.mx, m.my, m.sc * 1.2, { on: m }); snd('cast', .5); }, 300 + i * 250));
+  setTimeout(() => say(G.heroes.find(h => !h.ko), '又冒出小蚊子了！快清掉積水！', 2), 1500); }
+function killMini(m) { if (m.dead) return; m.dead = true; m.deadT = now; fx('poof', m.mx, m.my, m.sc * 1.3); snd('miss', .6); num('KO', m.mx, m.my - 30 * m.sc, '#80ffb0'); }
+function miniAct(m) { const al = alive(); if (!al.length) return; const h = al[Math.floor(Math.random() * al.length)], red = G.shield > 0 ? .3 : 1;
+  G.busy = { who: 'boss', t: now, end: now + 1.1, hitDone: false, step: e => { m.lunge = Math.sin(clamp(e / .9) * Math.PI);
+      if (!G.busy.hitDone && e > .45) { G.busy.hitDone = true; const d = Math.round(rnd(90, 150) * red); h.cur -= d; h.hurt = now; num(String(d), h.x, h.y - 80 * h.sc, '#ffb0b0'); fx(red < 1 ? 'block' : 'claw', h.x, h.y - 30 * h.sc, h.sc * .8, { flip: true, on: h }); snd(red < 1 ? 'block' : 'hurt', .6);
+        if (red < 1) { G.shield = Math.max(0, G.shield - .5); } if (h.cur <= 0) { h.cur = 0; h.ko = true; h.atb = 0; G.queue = G.queue.filter(x => x !== h); koRage(h); } } },
+    done: () => { m.lunge = 0; } }; m.target = h; msg('斑蚊小兵的叮咬！', '#ffb0b0', 1); }
+function minisDraw() { const M = A.spr.mosquito; if (!M) return; G.minis.forEach((m, i) => {
+    if (m.dead) { if (now - m.deadT > .6) return; }
+    const k = clamp((now - m.born) / .6); if (k <= 0) { const p = GL3D.project(BOSSW[0], 60, BOSSW[1]); m.mx = p.x; m.my = p.y; m.sc = p.s * 760; return; }
+    let [wx, wy, wz] = m.w; wx = lerp(BOSSW[0], wx, ease(k)); wz = lerp(BOSSW[1], wz, ease(k)); wy += Math.sin(now * 4 + i * 2) * 6;
+    if (m.lunge && m.target) { const t = m.target; wx = lerp(wx, t.wp[0] - 30, m.lunge); wz = lerp(wz, t.wp[1], m.lunge); wy = lerp(wy, 40, m.lunge); }
+    const p = GL3D.project(wx, wy, wz); m.mx = p.x; m.my = p.y; m.sc = p.s * 760;
+    const ht = now - m.hurt, a = m.dead ? 1 - (now - m.deadT) / .6 : k;
+    X.save(); X.globalAlpha = .25 * a; X.fillStyle = '#000'; const gp = GL3D.project(wx, 0, wz); X.beginPath(); X.ellipse(gp.x * KS, gp.y * KS, 14 * m.sc * KS, 3 * m.sc * KS, 0, 0, 7); X.fill(); X.restore();
+    spr(M['f' + (Math.floor(now * 16 + i) % 4)], m.mx, m.my + 20 * m.sc, m.sc * 1.3, { flip: true, alpha: a, tint: ht < .15 ? 'rgba(255,255,255,.7)' : null });
+    if (!m.dead) { const bw = 30 * m.sc; X.save(); X.fillStyle = 'rgba(0,0,0,.6)'; X.fillRect((m.mx - bw / 2) * KS, (m.my - 30 * m.sc) * KS, bw * KS, 3 * KS); X.fillStyle = '#ff6070'; X.fillRect((m.mx - bw / 2) * KS, (m.my - 30 * m.sc) * KS, bw * clamp(m.hp / m.max) * KS, 3 * KS); X.restore(); } }); }
 function strike(h, sk) { const B = G.boss, crit = Math.random() < .18; let dmg, word, col;
   if (sk.good === 1) { dmg = rnd(1700, 2300); word = '效果絕佳！'; col = '#80ffb0'; G.gem = Math.min(4, G.gem + 1); }
   else if (sk.good === 0) { dmg = rnd(120, 260); word = '效果不佳……'; col = '#a0a8c0'; }
   else { dmg = rnd(320, 460); word = ''; col = '#fff'; }
-  if (crit) dmg *= 1.9; dmg *= 1 + .35 * (G.rage || 0); if (G.weak > 0) { dmg *= 1.5; G.weak--; } dmg = Math.round(dmg); B.hp -= dmg;
+  if (crit) dmg *= 1.9; dmg *= 1 + .35 * (G.rage || 0); if (G.weak > 0) { dmg *= 1.5; G.weak--; } dmg = Math.round(dmg);
+  const ml = G.minis.filter(m => !m.dead);
+  if (ml.length && sk.good !== 1) { const m = ml[0]; m.hp -= dmg * 1.6; m.hurt = now; fx('crit', m.mx, m.my, m.sc, { on: m }); num(String(Math.round(dmg * 1.6)), m.mx, m.my - 30 * m.sc, '#fff'); snd('hit', .8); if (m.hp <= 0) killMini(m); G.shake = 2; msg('打到了斑蚊小兵！', '#ffd0a0', 1.2); return; }
+  if (ml.length && sk.good === 1) { ml.forEach((m, j) => setTimeout(() => killMini(m), 200 + j * 150)); setTimeout(() => msg('清除孳生源！斑蚊小兵全滅！', '#80ffb0', 1.8), 900); }
+  B.hp -= dmg;
   if (sk.good === 1 && Math.random() < .5) say(h, ['看我的厲害！', '把積水通通清掉！', '蚊子王，受死吧！'][Math.floor(Math.random() * 3)], 1.6, '#c8ffd8');
   else if (sk.good === 0) setTimeout(() => say(h, ['咦？怎麼攻擊都沒有用……', '可惡，打不痛牠！', '要用防治的方法才行……'][Math.floor(Math.random() * 3)], 1.8), 400); B.hurt = now; G.shake = crit ? 7 : sk.good === 1 ? 4 : 2;
-  const hx = B.x + 40 * B.sc, hy = B.y - 90 * B.sc; fx(sk.fx || 'crit', hx, hy + 40 * B.sc, 1.5 * B.sc, { add: sk.fx === 'geyser' ? false : true }); fx('hitflash', hx, hy, 1.6 * B.sc, { add: true });
-  if (crit) { fx('crit', hx, hy + 20, 2 * B.sc); fx('sunburst', hx, hy, 2.2 * B.sc, { add: true }); }
+  const hx = B.x + 40 * B.sc, hy = B.y - 90 * B.sc; fx(sk.fx || 'crit', hx, hy + 40 * B.sc, 1.5 * B.sc, { add: sk.fx === 'geyser' ? false : true, on: B }); fx('hitflash', hx, hy, 1.6 * B.sc, { add: true, on: B });
+  if (crit) { fx('crit', hx, hy + 20, 2 * B.sc, { on: B }); fx('sunburst', hx, hy, 2.2 * B.sc, { add: true, on: B }); }
   snd(sk.snd || 'smash', .85); setTimeout(() => snd(crit ? 'smash' : 'hit', .8), 80);
   num(String(dmg), hx, hy - 10, crit ? '#ffe040' : '#fff', crit ? 1.8 : 1.2);
   if (crit) { num('擊中要害！', hx, hy - 40, '#ff6060', 1.2); msg('擊中要害！' + (word ? '　' + word : ''), '#ff8080', 1.6); } else if (word) { num(word, hx, hy - 34, col, 1); msg(word, col, 1.4); }
@@ -357,21 +388,22 @@ function strike(h, sk) { const B = G.boss, crit = Math.random() < .18; let dmg, 
 }
 function itemAct(h, it) { G.busy = { who: h.id, h, t: now, end: now + 1.6, side: .3, step: e => { h.anim = 'c0'; }, done: () => finish(h) };
   if (!it.ok) { msg('✖ 不可以！疑似登革熱不能自行吃阿斯匹靈或消炎止痛藥，可能會加重出血！', '#ff9090', 3.2); snd('hurt', .6); h.cur = Math.max(1, h.cur - 200); h.hurt = now; num('-200', h.x, h.y - 80 * h.sc, '#ff6060'); return; }
-  snd('heal', .8); if (it.n === '就醫檢查') { G.heroes.forEach(x => { if (x.ko) return; x.cur = Math.min(x.hp, x.cur + 600); x.fever = 0; fx('heal', x.x, x.y, x.sc); num('+600', x.x, x.y - 80 * x.sc, '#80ff90'); }); msg('效果絕佳！盡速就醫、多休息多喝水！全體回復、退燒', '#80ff90', 2.4); G.gem = Math.min(4, G.gem + 1); }
-  else { const tg = G.heroes.filter(x => !x.ko).sort((a, b) => a.cur / a.hp - b.cur / b.hp)[0]; tg.cur = Math.min(tg.hp, tg.cur + 500); fx('bloom', tg.x, tg.y, tg.sc); num('+500', tg.x, tg.y - 80 * tg.sc, '#80ff90'); msg(tg.name + ' 回復了！', '#80ff90'); }
+  snd('heal', .8); if (it.n === '就醫檢查') { G.heroes.forEach(x => { if (x.ko) return; x.cur = Math.min(x.hp, x.cur + 600); x.fever = 0; fx('heal', x.x, x.y, x.sc, { on: x }); num('+600', x.x, x.y - 80 * x.sc, '#80ff90'); }); msg('效果絕佳！盡速就醫、多休息多喝水！全體回復、退燒', '#80ff90', 2.4); G.gem = Math.min(4, G.gem + 1); }
+  else { const tg = G.heroes.filter(x => !x.ko).sort((a, b) => a.cur / a.hp - b.cur / b.hp)[0]; tg.cur = Math.min(tg.hp, tg.cur + 500); fx('bloom', tg.x, tg.y, tg.sc, { on: tg }); num('+500', tg.x, tg.y - 80 * tg.sc, '#80ff90'); msg(tg.name + ' 回復了！', '#80ff90'); }
 }
 // ---------- 魔王行動 ----------
-function bossAct() { const B = G.boss, al = alive(); if (!al.length) return; B.atb = 0; const sonic = Math.random() < .4; let tgt = al[Math.floor(Math.random() * al.length)];
+function bossAct() { const B = G.boss, al = alive(); if (!al.length) return; B.atb = 0; G.bossTurn++;
+  if (G.bossTurn >= G.nextSummon && !G.minis.some(m => !m.dead)) { G.nextSummon = G.bossTurn + G.summonGap; G.summonGap = Math.min(5, G.summonGap + 1); return summonMinis(); } const sonic = Math.random() < .4; let tgt = al[Math.floor(Math.random() * al.length)];
   // 中央山脈超人掩護：被攻擊的人血量低於 30%，就衝過去擋下
   const M = G.heroes.find(x => x.id === 'M'); let cover = null;
   if (!sonic && M && !M.ko && tgt !== M && tgt.cur < tgt.hp * .3 && M.cur > M.hp * .15) { cover = tgt; tgt = M; say(M, '我來幫你擋下攻擊！', 2.2, '#a8ffd8'); setTimeout(() => say(cover, '超人……謝謝你！', 1.6), 900); }
   snd('roar', .6); msg(sonic ? '超級大蚊子王：超音波嗡嗡波！' : '超級大蚊子王：吸血叮咬！', '#ff9090', 1.6);
   G.busy = { who: 'boss', t: now, end: now + 1.8, hitDone: false,
     step: e => { if (cover) { const k = Math.min(clamp(e / .35), clamp((1.8 - e) / .3)); M.off = (M.x - cover.x + 26 * cover.sc) * ease(k); M.hop = (M.y - cover.y) * ease(k); M.anim = k < 1 && e < .4 ? 'r' + (Math.floor(e * 16) % 8) : 'stand'; if (e > 1.75) { M.off = 0; M.hop = 0; M.anim = null; } }
-      B.lunge = sonic ? 0 : Math.sin(clamp((e - .2) / 1.0) * Math.PI) * ((cover || tgt).x - B.x) * .45; if (sonic && e > .3 && e < 1.1) fx('emp', B.x + 60 * B.sc, B.y - 80 * B.sc, 1.6 * B.sc, { add: true });
+      B.lunge = sonic ? 0 : Math.sin(clamp((e - .2) / 1.0) * Math.PI) * ((cover || tgt).x - B.x) * .45; if (sonic && e > .3 && e < 1.1) fx('emp', B.x + 60 * B.sc, B.y - 80 * B.sc, 1.6 * B.sc, { add: true, on: B });
       if (!G.busy.hitDone && e >= .7) { G.busy.hitDone = true; const list = sonic ? al : [tgt]; const red = (G.shield > 0 ? .3 : 1) * (cover ? .6 : 1); if (G.shield > 0) G.shield--;
         list.forEach(h => { const d = Math.round((sonic ? rnd(320, 520) : rnd(640, 920)) * red * (B.hp < B.max * .3 ? 1.3 : 1)); const was = h.cur; h.cur -= d; h.hurt = now; const hx = h.x - (h.off || 0), hy = h.y - (h.hop || 0); num(String(d), hx, hy - 80 * h.sc, '#ffb0b0');
-          fx(sonic ? 'thunder' : cover ? 'block' : 'claw', hx, hy - 30 * h.sc, h.sc, { flip: true }); if (!sonic && !cover && Math.random() < .6) { h.fever = 1; setTimeout(() => msg(h.name + ' 被叮了！發燒、頭痛……快用「就醫檢查」！', '#ffb0b0', 2.4), 500); }
+          fx(sonic ? 'thunder' : cover ? 'block' : 'claw', hx, hy - 30 * h.sc, h.sc, { flip: true, on: h }); if (!sonic && !cover && Math.random() < .6) { h.fever = 1; setTimeout(() => msg(h.name + ' 被叮了！發燒、頭痛……快用「就醫檢查」！', '#ffb0b0', 2.4), 500); }
           if (h.cur > 0 && h.cur < h.hp * .3 && was >= h.hp * .3) setTimeout(() => say(h, ['我、我不行了……', '好痛……快撐不住了……', '頭好暈……'][Math.floor(Math.random() * 3)], 2), 600);
           else if (h.cur > 0 && h.cur < h.hp * .5 && was >= h.hp * .5) setTimeout(() => say(h, ['可惡……這次的蚊子好強！', '好癢……可惡！', '怎麼辦……'][Math.floor(Math.random() * 3)], 2), 600);
           if (h.cur <= 0) { h.cur = 0; h.ko = true; h.atb = 0; G.queue = G.queue.filter(x => x !== h); koRage(h); } });
@@ -388,7 +420,7 @@ function summon(h) { G.gem = 0; G.summon = { t: now }; finish(h); msg('召喚．
   setTimeout(() => { playVid('close', .3, 1.8); msg('紅綠燈王，覺醒！', '#ffffff', 2.6); }, SUM.CLOSE[0] * 1000);
   setTimeout(() => { snd('appear2', .9); msg('召喚獸「紅綠燈王」從地底現身！', '#ffffff', 1.3); }, SUM.RISE * 1000);
   setTimeout(() => { playVid('atk', .3, 2.05); snd('beam', .95); msg('紅、黃、綠──三色光線，發射！', '#ffe680', 2.3); }, SUM.ATK[0] * 1000);
-  setTimeout(() => { const B = G.boss; B.hp -= 9999; B.hurt = now; G.shake = 9; snd('boom', .9); fx('bigboom', B.x, B.y, 1.4 * B.sc); num('9999', B.x + 30 * B.sc, B.y - 120 * B.sc, '#ffe040', 2.4); }, SUM.BOOM * 1000); }
+  setTimeout(() => { const B = G.boss; B.hp -= 9999; B.hurt = now; G.shake = 9; snd('boom', .9); fx('bigboom', B.x, B.y, 1.4 * B.sc, { on: B }); num('9999', B.x + 30 * B.sc, B.y - 120 * B.sc, '#ffe040', 2.4); }, SUM.BOOM * 1000); }
 function summonDraw() { const e = now - G.summon.t, p = GL3D.project(140, 0, 30), sc = p.s * 760, RH = 215 * sc, rx = p.x, ry = p.y;
   if (e < SUM.END - .4) { const k = Math.min(clamp(e / .5), clamp((SUM.END - .4 - e) / .5)); X.save(); X.translate(rx * KS, ry * KS); X.scale(1, .3); X.globalCompositeOperation = 'lighter';
     [['#ff4030', 1], ['#ffd020', .8], ['#40ff60', .6]].forEach(([c, s]) => { X.strokeStyle = c; X.globalAlpha = k; X.lineWidth = 3 * KS; X.beginPath(); X.arc(0, 0, 120 * sc * s * KS, 0, 7); X.stroke(); }); X.restore(); }
