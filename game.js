@@ -306,7 +306,7 @@ function battle(dt) {
   if (!G.result && alive().length === 0) { G.menu = null; G.result = 'lose'; G.end = now; }
   if (G.result) resultDraw();
 }
-function ui() { UIT(uiTop); UIB(uiBottom); UIT(uiMsg); if (G.menu && !G.result) menuDraw(); }
+function ui() { UIT(uiTop); UIB(uiBottom); UIT(uiMsg); UIT(gemNoteDraw); gemFlyDraw(); if (G.menu && !G.result) menuDraw(); }
 function uiTop() {
   const B = G.boss;
   // 魔王：名字、血條、進度條
@@ -337,20 +337,30 @@ function uiMsg() {
 }
 // 信號魔石：亮燈＋新增時閃光＋集滿提醒
 const GEMC = ['#ff4030', '#ffd020', '#40ff60', '#80c0ff'];
-function addGem() { if (G.gem >= 4) return; G.gem++; G.gemT = now; G.gemI = G.gem - 1; snd('appear', .6); beep(1568, .08, 'triangle', .07); setTimeout(() => beep(2093, .12, 'triangle', .07), 90);
-  if (G.gem === 4) { G.gemFull = now; setTimeout(() => { if (G.result || G.gem < 4) return; msg('信號魔石集滿了！可以使用「召喚」，呼叫紅綠燈王！', '#ffe680', 3.2); snd('awaken', .55); say(G.heroes.find(h => !h.ko), '魔石集滿了！快召喚紅綠燈王！', 2.2, '#ffe680'); }, 1300); } }
+const GFLY = .75;
+function addGem(h, why) { if (G.gem >= 4) return; G.gem++; G.gemI = G.gem - 1; G.gemT = now + GFLY; G.gemFrom = h && !h.ko ? [h.x, h.y - 50 * (h.sc || 1)] : [320, 200];
+  G.gemNote = { t: now, s: (why || '登革熱防治行動有效！') + `　信號魔石 +1（${G.gem}/4）`, sub: G.gem < 4 ? `再 ${4 - G.gem} 顆就能召喚紅綠燈王！` : '集滿了！可以召喚紅綠燈王！' };
+  snd('cast', .35); setTimeout(() => { snd('appear', .7); beep(1568, .08, 'triangle', .08); setTimeout(() => beep(2093, .14, 'triangle', .08), 90); }, GFLY * 1000);
+  if (G.gem === 4) { G.gemFull = now + GFLY; setTimeout(() => { if (G.result || G.gem < 4) return; msg('信號魔石集滿了！可以使用「召喚」，呼叫紅綠燈王！', '#ffe680', 3.2); snd('awaken', .55); say(G.heroes.find(h => !h.ko), '魔石集滿了！快召喚紅綠燈王！', 2.2, '#ffe680'); }, 2200); } }
+// 飛行光球＋說明（不受上方位移影響，自己算位置）
+function gemFlyDraw() { const e = now - (G.gemT - GFLY); if (G.gemI == null || !G.gemFrom || e < 0 || e > GFLY) return; const k = ease(clamp(e / GFLY)), [fx0, fy0] = G.gemFrom, tx = 22 + G.gemI * 16, ty = 27 + UY, c = GEMC[G.gemI];
+  const x = lerp(fx0, tx, k), y = lerp(fy0, ty, k) - Math.sin(k * Math.PI) * 60;
+  for (let s = 6; s >= 0; s--) { const kk = ease(clamp((e - s * .03) / GFLY)); glow(lerp(fx0, tx, kk), lerp(fy0, ty, kk) - Math.sin(kk * Math.PI) * 60, 9 - s, c, .5 - s * .06); }
+  glow(x, y, 16, c, 1); glow(x, y, 7, '#ffffff', 1); }
+function gemNoteDraw() { const n = G.gemNote; if (!n) return; const e = now - n.t, d = 3.6; if (e > d) { G.gemNote = null; return; } const a = clamp(e / .2) * clamp((d - e) / .4), sx = (1 - ease(clamp(e / .25))) * -40;
+  X.save(); X.globalAlpha = a; X.translate(sx * KS, 0); panel(8, 86, 330, 40, .93, '#ffe680'); T(n.s, 18, 92, { size: 11.5, color: '#fff6a0', stroke: 2 }); T(n.sub, 18, 109, { size: 10, color: '#a8ffd8', stroke: 2 }); X.restore(); }
 function gemsDraw() { const full = G.gem >= 4, fe = full ? now - (G.gemFull || 0) : 0;
   T(full ? '信號魔石　召喚可用！' : `信號魔石 ${G.gem}/4`, 12, 6, { size: 9.5, color: full ? (Math.floor(now * 4) % 2 ? '#fff6a0' : '#ffb040') : '#ffe8a0', stroke: 2 });
-  for (let i = 0; i < 4; i++) { const x = 22 + i * 16, y = 27, on = G.gem > i, c = GEMC[i];
+  for (let i = 0; i < 4; i++) { const x = 22 + i * 16, y = 27, on = G.gem > i && !(i === G.gemI && now < G.gemT), c = GEMC[i];
     if (!on) { X.save(); X.globalAlpha = .55; X.fillStyle = '#20243a'; X.strokeStyle = 'rgba(160,170,210,.6)'; X.lineWidth = KS; X.beginPath(); X.moveTo(x * KS, (y - 6) * KS); X.lineTo((x + 5) * KS, y * KS); X.lineTo(x * KS, (y + 6) * KS); X.lineTo((x - 5) * KS, y * KS); X.closePath(); X.fill(); X.stroke(); X.restore(); continue; }
     const pulse = full ? .75 + .25 * Math.sin(now * 7 + i) : .85 + .15 * Math.sin(now * 3 + i);
     glow(x, y, (full ? 15 : 11) * pulse, c, .95);
     X.save(); X.fillStyle = c; X.strokeStyle = '#fff'; X.lineWidth = 1.2 * KS; X.beginPath(); X.moveTo(x * KS, (y - 7) * KS); X.lineTo((x + 6) * KS, y * KS); X.lineTo(x * KS, (y + 7) * KS); X.lineTo((x - 6) * KS, y * KS); X.closePath(); X.fill(); X.stroke();
     X.fillStyle = 'rgba(255,255,255,.85)'; X.beginPath(); X.moveTo((x - 1) * KS, (y - 5) * KS); X.lineTo((x + 2) * KS, (y - 1) * KS); X.lineTo((x - 2) * KS, y * KS); X.closePath(); X.fill(); X.restore(); }
   // 剛獲得：閃光圈＋星星＋「+1」
-  const e = now - (G.gemT ?? -9); if (e < 1.4 && G.gemI != null) { const x = 22 + G.gemI * 16, y = 27, c = GEMC[G.gemI], k = clamp(e / .6);
-    X.save(); X.globalCompositeOperation = 'lighter'; X.globalAlpha = 1 - k; X.strokeStyle = c; X.lineWidth = 3 * KS * (1 - k) + KS; X.beginPath(); X.arc(x * KS, y * KS, (6 + 30 * ease(k)) * KS, 0, 7); X.stroke(); X.restore();
-    glow(x, y, 26 * (1 - k) + 6, '#ffffff', 1 - k);
+  const e = now - (G.gemT ?? -9); if (e >= 0 && e < 1.4 && G.gemI != null) { const x = 22 + G.gemI * 16, y = 27, c = GEMC[G.gemI], k = clamp(e / .6);
+    X.save(); X.globalCompositeOperation = 'lighter'; X.globalAlpha = 1 - k; X.strokeStyle = c; X.lineWidth = 3 * KS * (1 - k) + KS; X.beginPath(); X.arc(x * KS, y * KS, (6 + 44 * ease(k)) * KS, 0, 7); X.stroke(); X.restore();
+    glow(x, y, 40 * (1 - k) + 8, '#ffffff', 1 - k); glow(x, y, 24, c, 1 - k);
     for (let s = 0; s < 8; s++) { const a = s / 8 * 6.283 + G.gemI, r = 6 + 34 * ease(clamp(e / .9)); glow(x + Math.cos(a) * r, y + Math.sin(a) * r, 3.5, c, clamp(1 - e / 1)); }
     T('+1 信號魔石', x + 12, 36 - 10 * ease(clamp(e / .5)), { size: 10, color: '#fff6a0', stroke: 2.5, alpha: clamp((1.4 - e) / .4) }); }
   // 集滿：四顆一起爆亮
@@ -381,11 +391,11 @@ function menuDraw() { const m = G.menu, h = m.h, items = menuItems(), k = ease(c
 function finish(h) { h.atb = 0; h.off = 0; h.lunge = 0; h.hop = 0; h.anim = null; }
 function heroAct(h, sk) { const B = G.boss, i = HEROES.findIndex(x => x.id === h.id); snd('cast', .45); fx('spellcharge', h.x, h.y, h.sc, { add: true, on: h });
   if (sk.scan) { G.busy = { who: h.id, h, t: now, end: now + 1.8, side: -.3, step: e => { h.anim = e < 1.2 ? 'look' + (Math.floor(e * 2) % 2) : 'c0'; },
-      done: () => { G.weak = 3; msg('效果絕佳！找出花盆底盤、水桶、積水！魔王防禦下降（接下來 3 次攻擊傷害提高）', '#80ffb0', 2.6); say(h, '孳生源，全部被我找到了！', 1.8, '#c8ffd8'); addGem(); finish(h); } };
+      done: () => { G.weak = 3; msg('效果絕佳！找出花盆底盤、水桶、積水！魔王防禦下降（接下來 3 次攻擊傷害提高）', '#80ffb0', 2.6); say(h, '孳生源，全部被我找到了！', 1.8, '#c8ffd8'); addGem(h, '用了登革熱防治絕招「巡視積水」，有效！'); finish(h); } };
     fx('scanner', h.x - 30, h.y, 1.5 * h.sc, { flip: true, add: true }); const B = G.boss; [0, 1, 2].forEach(j => setTimeout(() => { fx('sunburst', B.x + (j - 1) * 60 * B.sc, B.y - 10, .8, { add: true, on: B }); num(['！花盆底盤', '！水桶', '！積水'][j], B.x + (j - 1) * 70 * B.sc, B.y - 30 - j * 14, '#ffe060', .9); snd('cast', .4); }, 500 + j * 350));
     msg(sk.n, '#ffe680', 1.4); return; }
   if (sk.shield) { G.busy = { who: h.id, h, t: now, end: now + 1.6, side: .35, step: e => { h.anim = 'act' + (Math.floor(e * 6) % 4); },
-      done: () => { G.shield = 2; msg('效果絕佳！全體防蚊力上升（魔王下兩次攻擊減傷）', '#80ffb0'); snd('block', .8); G.heroes.forEach(x => !x.ko && fx('shield', x.x, x.y - 10 * x.sc, x.sc * 1.1, { add: true, on: x })); addGem(); finish(h); } };
+      done: () => { G.shield = 2; msg('效果絕佳！全體防蚊力上升（魔王下兩次攻擊減傷）', '#80ffb0'); snd('block', .8); G.heroes.forEach(x => !x.ko && fx('shield', x.x, x.y - 10 * x.sc, x.sc * 1.1, { add: true, on: x })); addGem(h, '用了登革熱防治絕招「防蚊」，有效！'); finish(h); } };
     msg(sk.n, '#ffe680', 1.4); return; }
   msg(sk.n === '攻擊' ? h.name + ' 的攻擊' : sk.n, '#ffe680', 1.2);
   const dist = (h.x - B.x) * .6, hitT = .55;
@@ -430,7 +440,7 @@ function minisDraw() { const M = A.spr.mosquito; if (!M) return; G.minis.forEach
     spr(M['f' + (Math.floor(now * 16 + i) % 4)], m.mx, m.my + 20 * m.sc, m.sc * 1.3, { flip: true, alpha: a, tint: ht < .15 ? 'rgba(255,255,255,.7)' : null });
     if (!m.dead) { const bw = 30 * m.sc; X.save(); X.fillStyle = 'rgba(0,0,0,.6)'; X.fillRect((m.mx - bw / 2) * KS, (m.my - 30 * m.sc) * KS, bw * KS, 3 * KS); X.fillStyle = '#ff6070'; X.fillRect((m.mx - bw / 2) * KS, (m.my - 30 * m.sc) * KS, bw * clamp(m.hp / m.max) * KS, 3 * KS); X.restore(); } }); }
 function strike(h, sk) { const B = G.boss, crit = Math.random() < .18; let dmg, word, col;
-  if (sk.good === 1) { dmg = rnd(1700, 2300); word = '效果絕佳！'; col = '#80ffb0'; addGem(); }
+  if (sk.good === 1) { dmg = rnd(1700, 2300); word = '效果絕佳！'; col = '#80ffb0'; addGem(h, `用了登革熱防治絕招「${sk.n.split('．').pop()}」，有效！`); }
   else if (sk.good === 0) { dmg = rnd(120, 260); word = '效果不佳……'; col = '#a0a8c0'; }
   else { dmg = rnd(320, 460); word = ''; col = '#fff'; }
   if (crit) dmg *= 1.9; dmg *= 1 + .35 * (G.rage || 0); if (G.weak > 0) { dmg *= 1.5; G.weak--; } dmg = Math.round(dmg);
@@ -449,7 +459,7 @@ function strike(h, sk) { const B = G.boss, crit = Math.random() < .18; let dmg, 
 }
 function itemAct(h, it) { G.busy = { who: h.id, h, t: now, end: now + 1.6, side: .3, step: e => { h.anim = 'c0'; }, done: () => finish(h) };
   if (!it.ok) { msg('✖ 不可以！疑似登革熱不能自行吃阿斯匹靈或消炎止痛藥，可能會加重出血！', '#ff9090', 3.2); snd('hurt', .6); h.cur = Math.max(1, h.cur - 200); h.hurt = now; num('-200', h.x, h.y - 80 * h.sc, '#ff6060'); return; }
-  snd('heal', .8); if (it.n === '就醫檢查') { G.heroes.forEach(x => { if (x.ko) return; x.cur = Math.min(x.hp, x.cur + 600); x.fever = 0; fx('heal', x.x, x.y, x.sc, { on: x }); num('+600', x.x, x.y - 80 * x.sc, '#80ff90'); }); msg('效果絕佳！盡速就醫、多休息多喝水！全體回復、退燒', '#80ff90', 2.4); addGem(); }
+  snd('heal', .8); if (it.n === '就醫檢查') { G.heroes.forEach(x => { if (x.ko) return; x.cur = Math.min(x.hp, x.cur + 600); x.fever = 0; fx('heal', x.x, x.y, x.sc, { on: x }); num('+600', x.x, x.y - 80 * x.sc, '#80ff90'); }); msg('效果絕佳！盡速就醫、多休息多喝水！全體回復、退燒', '#80ff90', 2.4); addGem(h, '做出正確的防治行動「就醫檢查」，有效！'); }
   else { const tg = G.heroes.filter(x => !x.ko).sort((a, b) => a.cur / a.hp - b.cur / b.hp)[0]; tg.cur = Math.min(tg.hp, tg.cur + 500); fx('bloom', tg.x, tg.y, tg.sc, { on: tg }); num('+500', tg.x, tg.y - 80 * tg.sc, '#80ff90'); msg(tg.name + ' 回復了！', '#80ff90'); }
 }
 // ---------- 魔王行動 ----------
